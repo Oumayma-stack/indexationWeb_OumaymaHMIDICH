@@ -179,5 +179,134 @@ def main():
 - `build_feature_indexes(documents, feature)` : Construit l'index d'une caractéristique spécifique
 - `save_results(results, filename)` : Sauvegarde les résultats au format JSON
 
+# TP3 - Moteur de Recherche
 
+Ce projet implémente un moteur de recherche complet utilisant les index inversés construits dans le TP2 pour rechercher et classer des produits selon leur pertinence.
+
+## Description
+
+Le moteur de recherche permet de :
+- Traiter les requêtes utilisateur (tokenisation, normalisation, expansion de synonymes)
+- Filtrer les documents candidats à partir de plusieurs index
+- Calculer des scores de pertinence (BM25 + signaux additionnels)
+- Classer et retourner les résultats triés par pertinence
+
+## Structure du projet
+
+```
+TP3/
+├── browser.py                 # Moteur de recherche principal
+├── input/
+│   ├── title_index.json       # Index inversé des titres (TP2)
+│   ├── description_index.json # Index inversé des descriptions (TP2)
+│   ├── brand_index.json       # Index des marques (TP2)
+│   ├── origin_index.json      # Index des origines (TP2)
+│   ├── reviews_index.json     # Index des avis (TP2)
+│   ├── origin_synonyms.json   # Dictionnaire de synonymes pour les origines
+│   └── rearranged_products.jsonl # Documents produits
+└── output/
+    └── results.jsonl          # Résultats de recherche
+```
+
+## Fonctionnalités
+
+### 1. Traitement de requête (`process_query`)
+
+Pipeline complet de traitement :
+- **Tokenisation** : Conversion en minuscules, suppression de la ponctuation
+- **Normalisation** : Suppression des stopwords (mots vides)
+- **Expansion de synonymes** : Ajout de termes synonymes (ex: "USA" → "United States", "America")
+
+### 2. Filtrage de documents
+
+#### `filter_any_token(tokens, index)`
+- Retourne les documents contenant **au moins un** token de la requête (logique OR)
+- Utilisé pour maximiser le rappel (recall)
+
+#### `filter_all_tokens(tokens, index)`
+- Retourne les documents contenant **tous** les tokens de la requête (logique AND)
+- Utilisé pour améliorer la précision (precision)
+
+#### `filter_documents(tokens)`
+- Stratégie hybride :
+  - Filtrage OR sur tous les index (titre, description, marque, origine)
+  - Filtrage AND strict sur l'index des titres
+  - Union des deux ensembles de candidats
+
+### 3. Scoring BM25 (`bm25`)
+
+Implémentation de l'algorithme BM25 (Best Matching 25) :
+- **IDF (Inverse Document Frequency)** : Poids des termes rares
+- **TF (Term Frequency)** : Fréquence des termes dans le document
+- **Normalisation de longueur** : Ajustement selon la longueur du document
+- Paramètres par défaut : `k1=1.5`, `b=0.75`
+
+### 4. Score combiné (`compute_score`)
+
+Score de pertinence combinant plusieurs signaux :
+- **Occurrences dans le titre** : ×3 par occurrence
+- **Occurrences dans la description** : ×1 par occurrence
+- **Occurrences dans les avis** : ×0.5 par occurrence
+- **Match exact dans le titre** : +5 si tous les tokens sont présents
+- **Nombre d'avis** : +0.1 par avis (favorise les produits populaires)
+
+### 5. Fonction de recherche (`search`)
+
+Pipeline complet :
+1. Traitement de la requête
+2. Filtrage des documents candidats
+3. Calcul des scores pour chaque document
+4. Tri par score décroissant
+5. Sauvegarde des résultats
+
+## Prérequis
+
+- Python 3.x
+- NLTK (Natural Language Toolkit)
+  ```bash
+  pip install nltk
+  ```
+
+## Utilisation
+
+### Exécution
+
+```bash
+python browser.py
+```
+
+Le script va :
+1. Charger tous les index depuis le répertoire `input/`
+2. Traiter la requête définie dans `main()` (ex: `"white beanie"`)
+3. Filtrer et scorer les documents
+4. Sauvegarder les résultats dans `output/results.jsonl`
+
+
+## Format de sortie
+
+Les résultats sont sauvegardés au format JSONL avec la structure suivante :
+
+```json
+{
+  "query": "white beanie",
+  "total_documents": 157,
+  "filtered_documents": 12,
+  "results": [
+    {
+      "title": "White Wool Beanie",
+      "url": "https://web-scraping.dev/product/5",
+      "description": "Description du produit...",
+      "score": 8
+    },
+    {
+      "title": "Beanie White",
+      "url": "https://web-scraping.dev/product/8",
+      "description": "Autre description...",
+      "score": 6
+    }
+  ]
+}
+```
+
+Les résultats sont triés par score décroissant (du plus pertinent au moins pertinent).
 
